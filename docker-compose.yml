@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  #custom image
+  app:
+    build:
+      args:
+        user: leonardo
+        uid: 1000
+      context: ./
+      dockerfile: Dockerfile
+    image: copec/laravel-app
+    container_name: laravel-app
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www/
+    depends_on:
+      - redis
+      - queue
+    restart: unless-stopped
+    networks:
+      - docker-laravel
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/
+      - ./docker/nginx/:/etc/nginx/conf.d/
+    networks:
+      - docker-laravel
+
+  pgsql:
+    image: postgres:12.17
+    container_name: pgsql
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.docker/postgresql:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - docker-laravel
+
+  pgadmin:
+    depends_on:
+      - pgsql
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - docker-laravel
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    networks:
+      - docker-laravel
+
+  queue:
+    build:
+      args:
+        user: leonardo
+        uid: 1000
+      context: ./
+      dockerfile: Dockerfile
+    restart: always
+    command: "php artisan queue:work"
+    volumes:
+      - ./:/var/www/
+    depends_on:
+      - redis
+    networks:
+      - docker-laravel
+
+networks:
+  docker-laravel:
+    driver: bridge
